@@ -43,15 +43,42 @@ class DataClassNavigationBuilder : NavigationBuilder {
     override fun buildNavigator(classDeclaration: KSClassDeclaration): String {
         var route = buildRouteBuiltIn(classDeclaration)
         val parameters = classDeclaration.getParameters().flatMap { it.parameters() }
-        parameters.forEach { (name, _, isNullable) ->
-            val replacer = if (!isNullable) {
-                "\${this" + ".${name}}"
-            } else {
-                "\${this" + ".${name.replace(".", "?.")} ?: \"\"}"
+        val nonEmptyParameters = parameters.filter { !it.second }
+        val emptyParameters = parameters.filter { it.second }
+        nonEmptyParameters.forEach { (name, acceptsEmpty, isNullable) ->
+            if (!acceptsEmpty) {
+                val replacer = if (!isNullable) {
+                    "\${this" + ".${name}}"
+                } else {
+                    "\${this" + ".${name.replace(".", "?.")} ?: \"\"}"
+                }
+                route = route.replace("{${name}}", replacer)
             }
-            route = route.replace("{${name}}", replacer)
         }
-        return "\"$route\""
+        route = "\"$route\""
+        if(emptyParameters.isNotEmpty()) {
+            route += "$route.let {\n"
+            route += "            val result = it\n"
+            route += "            var anyParameterAdded = false\n"
+
+
+            emptyParameters.forEachIndexed { index, triple ->
+                route += "            val value = " + if (!triple.third) {
+                    triple.first
+                } else {
+                    triple.first.replace(".", "?.")
+                }
+                route += "            if(value != null) {\n"
+                route += "                if(anyParameterAdded) result += \"&\" else \"?\"\n"
+                route += "                anyParameterAdded = true\n"
+                route += "                result += \"${triple.first}=\" + value\n"
+                route += "            }\n"
+            }
+
+            route += "            result\n"
+            route += "         }"
+        }
+        return route
     }
 
     override fun buildNavigationArgument(classDeclaration: KSClassDeclaration): String {
@@ -94,14 +121,6 @@ class DataClassNavigationBuilder : NavigationBuilder {
         val parameterList = parameters.flatMap { it.parameters() }
         parameterList.filter { !it.second }.forEach { kParameter ->
             append("{${kParameter.first}}$ROUTE_DELIMITER")
-        }
-        parameterList.filter { it.second }.let { kParameterList ->
-            if (kParameterList.isEmpty()) return@let
-            append("?")
-            kParameterList.forEachIndexed { index, kParameter ->
-                append("${kParameter.first}={${kParameter.first}}")
-                if (index < kParameterList.lastIndex) append("&")
-            }
         }
     }
 
