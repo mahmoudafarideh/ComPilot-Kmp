@@ -61,14 +61,14 @@ class DataClassNavigationBuilder : NavigationBuilder {
             route += "            var result = it\n"
             route += "            var anyParameterAdded = false\n"
 
-            route += "            listOf(\n"
+            route += "            mapOf(\n"
             emptyParameters.forEachIndexed { index, triple ->
                 val name = if (triple.third) {
-                    " \"${triple.first}\""
+                    "\"${triple.first}\""
                 } else {
-                    " \"${triple.first.replace(".", "?.")}\""
+                    "\"${triple.first.replace(".", "?.")}\""
                 }
-                route += "                \"${name}\" to $name"
+                route += "                \"$name\" to \${$name}"
                 if (index < emptyParameters.lastIndex) {
                     route += ",\n"
                 }
@@ -78,7 +78,7 @@ class DataClassNavigationBuilder : NavigationBuilder {
             route += "            if(value != null) {\n"
             route += "                if(anyParameterAdded) result += \"&\" else \"?\"\n"
             route += "                anyParameterAdded = true\n"
-            route += "                result += \"\$key= + \$value\n"
+            route += "                result += \"\$key=\$value\"\n"
             route += "            }\n"
 
             route += "            }\n"
