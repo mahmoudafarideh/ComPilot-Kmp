@@ -56,24 +56,32 @@ class DataClassNavigationBuilder : NavigationBuilder {
             }
         }
         route = "\"$route\""
-        if(emptyParameters.isNotEmpty()) {
-            route += "$route.let {\n"
-            route += "            val result = it\n"
+        if (emptyParameters.isNotEmpty()) {
+            route += ".let {\n"
+            route += "            var result = it\n"
             route += "            var anyParameterAdded = false\n"
 
-
+            route += "            listOf(\n"
             emptyParameters.forEachIndexed { index, triple ->
-                route += "            val value = " + if (!triple.third) {
-                    triple.first
+                val name = if (triple.third) {
+                    " \"${triple.first}\""
                 } else {
-                    triple.first.replace(".", "?.")
+                    " \"${triple.first.replace(".", "?.")}\""
                 }
-                route += "            if(value != null) {\n"
-                route += "                if(anyParameterAdded) result += \"&\" else \"?\"\n"
-                route += "                anyParameterAdded = true\n"
-                route += "                result += \"${triple.first}=\" + value\n"
-                route += "            }\n"
+                route += "                \"${name}\" to $name"
+                if (index < emptyParameters.lastIndex) {
+                    route += ",\n"
+                }
             }
+            route += "\n            ).forEach { (key, value) ->\n"
+            route += "\n"
+            route += "            if(value != null) {\n"
+            route += "                if(anyParameterAdded) result += \"&\" else \"?\"\n"
+            route += "                anyParameterAdded = true\n"
+            route += "                result += \"\$key= + \$value\n"
+            route += "            }\n"
+
+            route += "            }\n"
 
             route += "            result\n"
             route += "         }"
@@ -190,16 +198,20 @@ sealed class DataClassParameters {
         enum class Type {
             Int, Float, Double, Long, Boolean, String;
 
-            fun getFromBundle(name: String, isNullable: Boolean, isParentNullable: Boolean?): String {
+            fun getFromBundle(
+                name: String,
+                isNullable: Boolean,
+                isParentNullable: Boolean?
+            ): String {
                 val nullableGetter =
                     if (isNullable) "getString(\"$name\", \"\").takeIf { it.isNotEmpty() }" else ""
                 var result = when (this.toString()) {
-                    "Int" -> if (isNullable) "$nullableGetter?.let { it.toInt() }" else if(isParentNullable == true) "getString(\"$name\", \"0\").toInt()" else "getInt(\"$name\")"
-                    "Float" -> if (isNullable) "$nullableGetter?.let { it.toFloat() }" else if(isParentNullable == true) "getString(\"$name\", \"0\").toFloat()" else "getFloat(\"$name\")"
-                    "Double" -> if (isNullable) "$nullableGetter?.let { it.toDouble() }" else if(isParentNullable == true) "getString(\"$name\", \"0\").toDouble()" else "getFloat(\"$name\").toDouble()"
+                    "Int" -> if (isNullable) "$nullableGetter?.let { it.toInt() }" else if (isParentNullable == true) "getString(\"$name\", \"0\").toInt()" else "getInt(\"$name\")"
+                    "Float" -> if (isNullable) "$nullableGetter?.let { it.toFloat() }" else if (isParentNullable == true) "getString(\"$name\", \"0\").toFloat()" else "getFloat(\"$name\")"
+                    "Double" -> if (isNullable) "$nullableGetter?.let { it.toDouble() }" else if (isParentNullable == true) "getString(\"$name\", \"0\").toDouble()" else "getFloat(\"$name\").toDouble()"
                     "String" -> if (isNullable) "getString(\"$name\", null)" else "getString(\"$name\", \"\")"
-                    "Boolean" -> if (isNullable) "$nullableGetter?.let { it.toBoolean() }" else if(isParentNullable == true) "getString(\"$name\", \"false\").toBoolean()" else "getBoolean(\"$name\")"
-                    "Long" -> if (isNullable) "$nullableGetter?.let { it.toLong() }" else if(isParentNullable == true) "getString(\"$name\", \"0\").toLong()" else "getLong(\"$name\")"
+                    "Boolean" -> if (isNullable) "$nullableGetter?.let { it.toBoolean() }" else if (isParentNullable == true) "getString(\"$name\", \"false\").toBoolean()" else "getBoolean(\"$name\")"
+                    "Long" -> if (isNullable) "$nullableGetter?.let { it.toLong() }" else if (isParentNullable == true) "getString(\"$name\", \"0\").toLong()" else "getLong(\"$name\")"
                     else -> {
                         throw IllegalArgumentException("This Argument Type is not supported $this")
                     }
@@ -223,7 +235,9 @@ sealed class DataClassParameters {
 
         override fun getFromBundleString(prefix: String?): String {
             return "${this.name} = ${
-                type.getFromBundle("${prefix?.let { "$it." } ?: ""}$name", isNullable, isParentNullable)
+                type.getFromBundle("${prefix?.let { "$it." } ?: ""}$name",
+                    isNullable,
+                    isParentNullable)
             }"
         }
     }
@@ -290,13 +304,15 @@ sealed class DataClassParameters {
                 it.getFromBundleString("${prefix?.let { s -> "$s." } ?: ""}$name")
             }
             return buildString {
-                if(isNullable) {
-                    append("$name = when {\n" +
-                            "                listOf(" +
-                            arguments.joinToString(", ")
-                            +").any {\n" +
-                            "                    this.containsKey(it) && this.getString(it).takeIf { it?.isNotBlank() == true } != null\n" +
-                            "                } -> ")
+                if (isNullable) {
+                    append(
+                        "$name = when {\n" +
+                                "                listOf(" +
+                                arguments.joinToString(", ")
+                                + ").any {\n" +
+                                "                    this.containsKey(it) && this.getString(it).takeIf { it?.isNotBlank() == true } != null\n" +
+                                "                } -> "
+                    )
                 } else {
                     append("$name = ")
                 }
@@ -311,25 +327,28 @@ sealed class DataClassParameters {
                 }
                 append("            )")
 
-                if(isNullable) {
-                    append("\n" +
-                            "                else -> null\n" +
-                            "            }")
+                if (isNullable) {
+                    append(
+                        "\n" +
+                                "                else -> null\n" +
+                                "            }"
+                    )
                 }
             }
         }
 
-        private fun getGroupedParameters(prefix: String? = null): List<List<Pair<String, DataClassParameters>>> = buildList {
-            val newPrefix = (prefix?.let { "$it." } ?: "") + name
-            parameters.forEach { parameter ->
-                if(parameter is PrimitiveParameter) {
-                    add(listOf("$newPrefix.${parameter.name}" to parameter))
-                } else if(parameter is EnumParameter) {
-                    add(listOf("$newPrefix.${parameter.name}" to parameter))
-                } else if(parameter is DataClassParameter){
-                    addAll(parameter.getGroupedParameters(newPrefix))
+        private fun getGroupedParameters(prefix: String? = null): List<List<Pair<String, DataClassParameters>>> =
+            buildList {
+                val newPrefix = (prefix?.let { "$it." } ?: "") + name
+                parameters.forEach { parameter ->
+                    if (parameter is PrimitiveParameter) {
+                        add(listOf("$newPrefix.${parameter.name}" to parameter))
+                    } else if (parameter is EnumParameter) {
+                        add(listOf("$newPrefix.${parameter.name}" to parameter))
+                    } else if (parameter is DataClassParameter) {
+                        addAll(parameter.getGroupedParameters(newPrefix))
+                    }
                 }
             }
-        }
     }
 }
