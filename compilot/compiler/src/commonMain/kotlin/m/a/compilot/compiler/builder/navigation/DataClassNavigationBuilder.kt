@@ -58,33 +58,31 @@ class DataClassNavigationBuilder : NavigationBuilder {
         route = "\"$route\""
         if (emptyParameters.isNotEmpty()) {
             route += ".let {\n"
-            route += "            var result = it\n"
-            route += "            var anyParameterAdded = false\n"
+            route += "        var result = it\n"
+            route += "        var anyParameterAdded = false\n"
 
-            route += "            mapOf(\n"
+            route += "        mapOf(\n"
             emptyParameters.forEachIndexed { index, triple ->
-                val name = if (triple.third) {
-                    "\"${triple.first}\""
+                val name = if (!triple.third) {
+                    triple.first
                 } else {
-                    "\"${triple.first.replace(".", "?.")}\""
+                    triple.first.replace(".", "?.")
                 }
-                route += "                \"$name\" to \${$name}"
+                route += "            \"${triple.first}\" to $name"
                 if (index < emptyParameters.lastIndex) {
                     route += ",\n"
                 }
             }
-            route += "\n            ).forEach { (key, value) ->\n"
-            route += "\n"
+            route += "\n        ).forEach { (key, value) ->\n"
             route += "            if(value != null) {\n"
-            route += "                if(anyParameterAdded) result += \"&\" else \"?\"\n"
+            route += "                result += if(anyParameterAdded) \"&\" else \"?\"\n"
             route += "                anyParameterAdded = true\n"
             route += "                result += \"\$key=\$value\"\n"
             route += "            }\n"
+            route += "        }\n"
 
-            route += "            }\n"
-
-            route += "            result\n"
-            route += "         }"
+            route += "        result\n"
+            route += "    }"
         }
         return route
     }
@@ -209,7 +207,7 @@ sealed class DataClassParameters {
                     "Int" -> if (isNullable) "$nullableGetter?.let { it.toInt() }" else if (isParentNullable == true) "getString(\"$name\", \"0\").toInt()" else "getInt(\"$name\")"
                     "Float" -> if (isNullable) "$nullableGetter?.let { it.toFloat() }" else if (isParentNullable == true) "getString(\"$name\", \"0\").toFloat()" else "getFloat(\"$name\")"
                     "Double" -> if (isNullable) "$nullableGetter?.let { it.toDouble() }" else if (isParentNullable == true) "getString(\"$name\", \"0\").toDouble()" else "getFloat(\"$name\").toDouble()"
-                    "String" -> if (isNullable) "getString(\"$name\", null)" else "getString(\"$name\", \"\")"
+                    "String" -> if (isNullable) "getString(\"$name\")" else "getString(\"$name\", \"\")"
                     "Boolean" -> if (isNullable) "$nullableGetter?.let { it.toBoolean() }" else if (isParentNullable == true) "getString(\"$name\", \"false\").toBoolean()" else "getBoolean(\"$name\")"
                     "Long" -> if (isNullable) "$nullableGetter?.let { it.toLong() }" else if (isParentNullable == true) "getString(\"$name\", \"0\").toLong()" else "getLong(\"$name\")"
                     else -> {
