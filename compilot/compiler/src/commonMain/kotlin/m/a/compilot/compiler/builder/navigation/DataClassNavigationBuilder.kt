@@ -139,10 +139,8 @@ class DataClassNavigationBuilder : NavigationBuilder {
                 if (kParameterList.isEmpty()) return@let
                 append("?")
                 kParameterList.forEachIndexed { index, kParameter ->
-                    if (!kParameter.third) {
-                        append("${kParameter.first}={${kParameter.first}}")
-                        if (index < kParameterList.lastIndex) append("&")
-                    }
+                    append("${kParameter.first}={${kParameter.first}}")
+                    if (index < kParameterList.lastIndex) append("&")
                 }
             }
         }
