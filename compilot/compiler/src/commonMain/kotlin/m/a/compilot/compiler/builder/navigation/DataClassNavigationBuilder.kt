@@ -12,10 +12,13 @@ import m.a.compilot.compiler.builder.NavigationBuilder.Companion.ROUTE_DELIMITER
 class DataClassNavigationBuilder : NavigationBuilder {
 
     override fun buildRoute(classDeclaration: KSClassDeclaration): String {
-        return buildRouteBuiltIn(classDeclaration)
+        return buildRouteBuiltIn(classDeclaration, true)
     }
 
-    private fun buildRouteBuiltIn(classDeclaration: KSClassDeclaration): String {
+    private fun buildRouteBuiltIn(
+        classDeclaration: KSClassDeclaration,
+        appendQueryParameters: Boolean
+    ): String {
         val parameters = classDeclaration.getParameters()
         return buildString {
             append(
@@ -26,7 +29,7 @@ class DataClassNavigationBuilder : NavigationBuilder {
             )
             append(ROUTE_DELIMITER)
 
-            appendParameters(parameters)
+            appendParameters(parameters, appendQueryParameters)
         }
     }
 
@@ -41,7 +44,7 @@ class DataClassNavigationBuilder : NavigationBuilder {
     }
 
     override fun buildNavigator(classDeclaration: KSClassDeclaration): String {
-        var route = buildRouteBuiltIn(classDeclaration)
+        var route = buildRouteBuiltIn(classDeclaration, false)
         val parameters = classDeclaration.getParameters().flatMap { it.parameters() }
         val nonEmptyParameters = parameters.filter { !it.second }
         val emptyParameters = parameters.filter { it.second }
@@ -123,10 +126,25 @@ class DataClassNavigationBuilder : NavigationBuilder {
 
     private val KSTypeReference.classDeclaration get() = this.resolve().declaration.closestClassDeclaration()
 
-    private fun StringBuilder.appendParameters(parameters: List<DataClassParameters>) {
+    private fun StringBuilder.appendParameters(
+        parameters: List<DataClassParameters>,
+        appendQueryParameters: Boolean
+    ) {
         val parameterList = parameters.flatMap { it.parameters() }
         parameterList.filter { !it.second }.forEach { kParameter ->
             append("{${kParameter.first}}$ROUTE_DELIMITER")
+        }
+        if(appendQueryParameters) {
+            parameterList.filter { it.second }.let { kParameterList ->
+                if (kParameterList.isEmpty()) return@let
+                append("?")
+                kParameterList.forEachIndexed { index, kParameter ->
+                    if (!kParameter.third) {
+                        append("${kParameter.first}={${kParameter.first}}")
+                        if (index < kParameterList.lastIndex) append("&")
+                    }
+                }
+            }
         }
     }
 
@@ -308,7 +326,7 @@ sealed class DataClassParameters {
                                 "                listOf(" +
                                 arguments.joinToString(", ")
                                 + ").any {\n" +
-                                "                    this.containsKey(it) && this.getString(it).takeIf { it?.isNotBlank() == true } != null\n" +
+                                "                    this.containsKey(it) && this.getString(it) != null\n" +
                                 "                } -> "
                     )
                 } else {
