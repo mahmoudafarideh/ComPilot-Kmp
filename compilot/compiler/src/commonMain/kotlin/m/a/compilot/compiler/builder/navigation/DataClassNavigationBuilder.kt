@@ -312,7 +312,8 @@ sealed class DataClassParameters {
 
         override fun getFromBundleString(prefix: String?): String {
             val arguments = getGroupedParameters().flatten().map {
-                "\"${it.first}\""
+                val prefix = prefix?.let { prefix -> "$prefix." } ?: ""
+                "\"$prefix${it.first}\""
             }
             val parametersBundle = parameters.map {
                 it.getFromBundleString("${prefix?.let { s -> "$s." } ?: ""}$name")
